@@ -3,8 +3,8 @@ import json
 import httpx
 from typing import Tuple
 
-# MCP server URL
-MCP_SERVER_URL = "http://127.0.0.1:8090/mcp"
+# MCP server URL (default server runs on port 8099)
+MCP_SERVER_URL = "http://127.0.0.1:8099/mcp"
 
 # Global session ID (will be set after initialization)
 session_id = None
@@ -115,9 +115,21 @@ async def call_tool(tool_name: str, arguments: dict) -> dict:
     response, _ = await make_mcp_request("tools/call", params)
     return response
 
+def get_tool_result_text(result: dict) -> str:
+    """Extract tool result text from MCP response. Returns empty string if error or no content."""
+    if "error" in result:
+        return ""
+    if "result" not in result or "content" not in result["result"]:
+        return ""
+    content = result["result"]["content"]
+    if not content or len(content) == 0:
+        return ""
+    return content[0].get("text", "")
+
+
 async def main():
     try:
-        print("Connecting to MCP server...")
+        print("Connecting to MCP server at", MCP_SERVER_URL)
         
         # Initialize session first
         await initialize_session()
@@ -131,61 +143,66 @@ async def main():
         for i, tool in enumerate(tools, 1):
             print(f"  {i}. {tool.get('name', 'unknown')}")
             print(f"     Description: {tool.get('description', 'No description')}")
-            if 'inputSchema' in tool:
+            if "inputSchema" in tool:
                 print(f"     Input Schema: {json.dumps(tool['inputSchema'], indent=8)}")
             print()
         
         print("-" * 50)
         
-        # Test 1: Call the 'list_files' tool
-        print("\n1. Testing list_files tool:")
-        result = await call_tool("list_files", {})
-        
-        # Extract content from the response
-        if "result" in result and "content" in result["result"]:
-            content = result["result"]["content"]
-            if content and len(content) > 0:
-                # The content is a list of TextContent objects
-                text_content = content[0].get("text", "")
-                # Parse JSON string to get the actual list
-                files_data = json.loads(text_content)
-                print(f"Files in directory ({len(files_data)} items):")
-                for item in files_data:
-                    print(f"  - {item['name']} ({item['type']})")
-            else:
-                print("No content returned")
+        # Test 1: project_files (list project root)
+        print("\n1. Testing project_files tool (project root):")
+        result = await call_tool("project_files", {})
+        if "error" in result:
+            print(f"   Error: {result['error'].get('message', result['error'])}")
         else:
-            print(f"Unexpected response format: {result}")
-        
-        # Test 2: Call the 'add' tool
-        print("\n2. Testing add tool:")
-        result = await call_tool("add", {"a": 5, "b": 3})
-        
-        # Extract content from the response
-        if "result" in result and "content" in result["result"]:
-            content = result["result"]["content"]
-            if content and len(content) > 0:
-                answer = content[0].get("text", "")
-                print(f"5 + 3 = {answer}")
+            text = get_tool_result_text(result)
+            if text:
+                data = json.loads(text)
+                if "error" in data:
+                    print(f"   Tool error: {data['error']}")
+                else:
+                    print(f"   Directory: {data.get('directory', '.')}")
+                    print(f"   Entries: {data.get('count', 0)}")
+                    for entry in data.get("entries", [])[:15]:
+                        print(f"   - {entry.get('name')} ({entry.get('type')})")
+                    if data.get("count", 0) > 15:
+                        print(f"   ... and {data['count'] - 15} more")
             else:
-                print("No result returned")
+                print("   No content returned")
+        
+        # Test 2: ad_stats (no filter)
+        print("\n2. Testing ad_stats tool:")
+        result = await call_tool("ad_stats", {})
+        if "error" in result:
+            print(f"   Error: {result['error'].get('message', result['error'])}")
         else:
-            print(f"Unexpected response format: {result}")
-        
-        # Test 3: Call add with different numbers
-        print("\n3. Testing add tool with different numbers:")
-        result = await call_tool("add", {"a": 100, "b": 42})
-        
-        # Extract content from the response
-        if "result" in result and "content" in result["result"]:
-            content = result["result"]["content"]
-            if content and len(content) > 0:
-                answer = content[0].get("text", "")
-                print(f"100 + 42 = {answer}")
+            text = get_tool_result_text(result)
+            if text:
+                data = json.loads(text)
+                summary = data.get("summary", {})
+                print(f"   Ad count: {summary.get('ad_count', 0)}")
+                print(f"   Total spend (USD): {summary.get('total_spend_usd', 0)}")
+                print(f"   Total impressions: {summary.get('total_impressions', 0)}")
+                print(f"   Total clicks: {summary.get('total_clicks', 0)}")
+                print(f"   Overall CTR %: {summary.get('overall_ctr_pct', 0)}")
+                print(f"   Overall CPC (USD): {summary.get('overall_cpc_usd', 0)}")
             else:
-                print("No result returned")
+                print("   No content returned")
+        
+        # Test 3: ad_stats with channel filter
+        print("\n3. Testing ad_stats tool (channel=Google):")
+        result = await call_tool("ad_stats", {"channel": "Google"})
+        if "error" in result:
+            print(f"   Error: {result['error'].get('message', result['error'])}")
         else:
-            print(f"Unexpected response format: {result}")
+            text = get_tool_result_text(result)
+            if text:
+                data = json.loads(text)
+                summary = data.get("summary", {})
+                print(f"   Ad count: {summary.get('ad_count', 0)}")
+                print(f"   Total spend (USD): {summary.get('total_spend_usd', 0)}")
+            else:
+                print("   No content returned")
         
         print("\n" + "-" * 50)
         print("All tests completed!")
@@ -194,7 +211,7 @@ async def main():
         print(f"HTTP error: {e.response.status_code} - {e.response.text}")
     except Exception as e:
         print(f"Error connecting to server: {e}")
-        print("Make sure the server is running on http://127.0.0.1:8090/mcp")
+        print("Make sure the server is running on", MCP_SERVER_URL)
 
 if __name__ == "__main__":
     asyncio.run(main())

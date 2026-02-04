@@ -319,31 +319,9 @@ async def handle_tools_call(request: Request) -> Response:
         
         # Execute the tool with provided arguments
         try:
-            # Call execute function with arguments unpacked
+            # Call execute function with arguments unpacked (empty dict is valid for all-optional params)
             logger.debug(f"Executing tool {tool_name} with arguments: {arguments}")
-            if arguments:
-                result_data = execute_func(**arguments)
-            else:
-                # Check if function requires arguments by inspecting its signature
-                import inspect
-                sig = inspect.signature(execute_func)
-                if len(sig.parameters) > 0:
-                    return web.Response(
-                        text=json.dumps(create_jsonrpc_response(
-                            request_id,
-                            error={
-                                "code": -32602,
-                                "message": f"Tool '{tool_name}' requires arguments but none were provided",
-                                "data": {
-                                    "required": required_params,
-                                    "provided": []
-                                }
-                            }
-                        )),
-                        content_type="application/json",
-                        status=400
-                    )
-                result_data = execute_func()
+            result_data = execute_func(**arguments)
             
             # Log the raw result data with full details
             logger.info(f"Tool {tool_name} returned result (type: {type(result_data).__name__})")

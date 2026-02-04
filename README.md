@@ -26,6 +26,10 @@ Edit **`config.yml`**:
 
 Validated on macOS and Raspberry Pi 4 (Bullseye).
 
+## Integration
+
+Can be used as an MCP server for Cursor, Claude, or other MCP clients. With `auto-start-diode: true`, the server can be reached via the printed Diode public URL (e.g. for remote or shared access).
+
 ### Diode (optional)
 
 Only needed if you set **`auto-start-diode: true`** in `config.yml` to publish the MCP server publicly.
@@ -39,8 +43,19 @@ Only needed if you set **`auto-start-diode: true`** in `config.yml` to publish t
 - **`diode_manager.py`** — Optional Diode CLI integration (start/stop, publish port, print public URL).
 - **`config.yml`** — Server config and tool list.
 - **`tools/`** — Tool implementations (`file_tool.py`, `stats_tool.py`); each defines `TOOL_METADATA` and `execute()`.
-- **`example_client/`** — Example MCP client script (not part of the core server). Run with `python3 example_client/client_example.py` after pointing it at your server URL and adjusting for the tools you expose.
+- **`example_client/`** — Example MCP client (see below).
 
-## Integration
+## Example client
 
-Can be used as an MCP server for Cursor, Claude, or other MCP clients. With `auto-start-diode: true`, the server can be reached via the printed Diode public URL (e.g. for remote or shared access).
+The **`example_client/`** folder contains a small Python script that acts as an MCP client: it connects to the server, initializes a session, lists tools, and calls tools. Use it to test the server or as a reference for building your own client.
+
+**Run it:**
+
+1. Start the MCP server in another terminal: `python3 mcp_server.py`
+2. Install the client dependency: `pip install httpx`
+3. In **`example_client/client_example.py`**, set `MCP_SERVER_URL` to your server (default server port is **8099**), e.g. `http://127.0.0.1:8099/mcp`
+4. Run the client: `python3 example_client/client_example.py`
+
+The script lists available tools and runs a few example tool calls. Adjust the tool names and arguments in the script to match the tools you have enabled in `config.yml` (e.g. `project_files`, `ad_stats`).
+
+
