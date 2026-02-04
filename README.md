@@ -26,6 +26,13 @@ Edit **`config.yml`**:
 
 Validated on macOS and Raspberry Pi 4 (Bullseye).
 
+### Diode (optional)
+
+Only needed if you set **`auto-start-diode: true`** in `config.yml` to publish the MCP server publicly.
+
+- **Install the Diode CLI:** [https://diode.io/download#cli](https://diode.io/download#cli) — pick your OS and follow the instructions so the `diode` binary is on your PATH (or in the project directory).
+- The server will spawn the Diode client on startup and print the public URL (e.g. `https://<client>.diode.link:8099/mcp`).
+
 ## Project layout
 
 - **`mcp_server.py`** — Main MCP server (HTTP JSON-RPC at `/mcp`).
