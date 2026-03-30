@@ -493,7 +493,7 @@ if __name__ == "__main__":
         sock.listen(128)
         sock.setblocking(False)
         actual_port = int(sock.getsockname()[1])
-        site = web.TCPSite(runner, sock=sock)
+        site = web.SockSite(runner, sock)
         await site.start()
 
         try:
