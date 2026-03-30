@@ -1,0 +1,21 @@
+[Unit]
+Description=Diode MCP reference server (HTTP JSON-RPC + optional Diode publish)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Repository template: deploy/mcp-example.service (install: see deploy/README.md)
+# Set WorkingDirectory to project root (must contain server.py, .venv, config.yml, tools/).
+WorkingDirectory=/opt/diode-mcp-example
+ExecStart=/opt/diode-mcp-example/.venv/bin/python server.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Diode: Python always reads <WorkingDirectory>/.env (see diode_manager)
+# You can override .env and code hard-coded defaults by calling the variables out here
+# Environment=DIODE_PUBLISH_PORT=9000
+
+[Install]
+WantedBy=multi-user.target

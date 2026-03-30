@@ -48,7 +48,7 @@ def load_tool_module(tool_file: str) -> tuple:
     if not tool_path.exists():
         raise FileNotFoundError(f"Tool file not found: {tool_file}")
     
-    # Convert file path to module name (e.g., "tools/list_files.py" -> "tools.list_files")
+    # Convert file path to module name (e.g. "tools/list_files.py" -> "tools.list_files")
     module_name = tool_path.stem
     spec = importlib.util.spec_from_file_location(module_name, tool_path)
     
@@ -469,30 +469,85 @@ def create_app() -> web.Application:
     return app
 
 
-MCP_PORT = 8099
-
-
 if __name__ == "__main__":
-    import atexit
+    import asyncio
+    import signal
+    import socket
+
+    # Load <project_root>/.env before Diode reads DIODE_* (see diode_manager precedence).
+    import diode_client.diode_manager  # noqa: F401
 
     app = create_app()
-    config = load_config()
-    auto_start_diode = config.get("auto-start-diode", False)
 
-    if auto_start_diode:
+    async def _run() -> None:
+        runner = web.AppRunner(app)
+        await runner.setup()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            from diode_manager import set_publish_port, start_diode_cli, cleanup_diode
-            set_publish_port(MCP_PORT)
-            if start_diode_cli():
-                atexit.register(cleanup_diode)
-            else:
-                logger.warning("Diode auto-start failed; MCP server will run locally only.")
+            sock.bind(("127.0.0.1", 0))
+        except OSError as e:
+            await runner.cleanup()
+            logger.error("Could not bind MCP server: %s", e)
+            raise SystemExit(1) from e
+        sock.listen(128)
+        sock.setblocking(False)
+        actual_port = int(sock.getsockname()[1])
+        site = web.TCPSite(runner, sock=sock)
+        await site.start()
+
+        try:
+            from diode_client.diode_manager import (
+                cleanup_diode,
+                configure_mcp_listen_port,
+                start_diode_cli,
+                validate_diode_environment,
+            )
+
+            configure_mcp_listen_port(actual_port)
+            env_err = validate_diode_environment()
+            if env_err:
+                await runner.cleanup()
+                logger.error("%s See .env_example.", env_err)
+                raise SystemExit(1)
+            if not start_diode_cli():
+                logger.warning("Diode failed to start; MCP server will run locally only.")
+        except SystemExit:
+            raise
         except Exception as e:
-            logger.warning("Could not start Diode client: %s. MCP server will run locally only.", e)
+            logger.warning("Could not start Diode: %s. MCP server will run locally only.", e)
 
-    logger.info("=" * 60)
-    logger.info("Starting MCP server on http://127.0.0.1:%s/mcp", MCP_PORT)
-    logger.info("Press Ctrl+C to stop")
-    logger.info("=" * 60)
-    web.run_app(app, host="127.0.0.1", port=MCP_PORT)
+        print("=" * 60, flush=True)
+        print(f"MCP server listening on http://127.0.0.1:{actual_port}/mcp", flush=True)
+        print("Press Ctrl+C to stop", flush=True)
+        print("=" * 60, flush=True)
 
+        stop = asyncio.Event()
+
+        def _on_stop() -> None:
+            stop.set()
+
+        try:
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, _on_stop)
+        except (NotImplementedError, RuntimeError, ValueError):
+            pass
+
+        try:
+            await stop.wait()
+        except asyncio.CancelledError:
+            pass
+        finally:
+            try:
+                from diode_client.diode_manager import cleanup_diode
+
+                cleanup_diode()
+            except Exception:
+                pass
+            await runner.cleanup()
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        pass

@@ -1,9 +1,5 @@
-# MCP Server Configuration
-# Project file information tool — list files and directories in the project
-
-# If true, spawn Diode CLI on startup to publish the MCP server port publicly (https://<client>.diode.link:PORT/mcp)
-# Watch console messages to see the public URL
-auto-start-diode: true
+# config.yml
+# Used to list MCP tools
 
 tools:
   - file: tools/file_tool.py

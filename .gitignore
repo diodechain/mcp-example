@@ -8,11 +8,13 @@ __pycache__/
 venv/
 env/
 
-# Diode / local runtime
-diode_client.log
-diode_mcp.db
-diode_mcp.db.bck
-config.json
+# Diode CLI runtime state (see diode_client/diode_manager.py)
+diode_client/diode_mcp.db
+diode_client/diode_mcp.db.bck
+diode_client/diode_client.log
+diode_client/config.json
+
+.env
 
 # IDE / OS
 .idea/
